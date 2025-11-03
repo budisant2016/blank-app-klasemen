@@ -2,8 +2,10 @@ import streamlit as st
 import requests
 from bs4 import BeautifulSoup
 import ftplib
+import os
 import pandas as pd
 from io import BytesIO
+import tempfile
 import datetime
 
 def clean_html_content(html_content):
@@ -35,35 +37,41 @@ def clean_html_content(html_content):
     # Daftar elemen yang akan dihapus
     
     
-    return str(soup)
+    return df
 
-def upload_via_ftp(content, filename, ftp_config):
+def upload_via_ftp(local_file_path, remote_file_name):
     """
-    Upload file via FTP ke hosting
+    Upload file ke server FTP
     """
+    # Ganti dengan kredensial FTP Anda
+    FTP_HOST = "157.66.54.106"
+    FTP_USER = "appbonek"
+    FTP_PASS = "jikasupport081174"
+    FTP_PATH = "/" 
+    
+    if not all([FTP_HOST, FTP_USER, FTP_PASS]):
+        st.error("Kredensial FTP tidak ditemukan. Silakan setting environment variables atau Streamlit secrets.")
+        return False
+    
     try:
         # Connect to FTP server
-        ftp = ftplib.FTP(ftp_config['host'])
-        ftp.login(ftp_config['user'], ftp_config['pass'])
+        ftp = FTP(FTP_HOST)
+        ftp.login(FTP_USER, FTP_PASS)
         
-        # Change to target directory
-        if 'path' in ftp_config:
-            ftp.cwd(ftp_config['path'])
+        # Change to target directory if specified
+        if FTP_PATH:
+            ftp.cwd(FTP_PATH)
         
-        # Upload file sebagai binary
-        content_bytes = content.encode('utf-8')
-        file_obj = BytesIO(content_bytes)
+        # Upload file
+        with open(local_file_path, 'rb') as file:
+            ftp.storbinary(f'STOR {remote_file_name}', file)
         
-        # Gunakan STORBINARY untuk upload file
-        ftp.storbinary(f'STOR {filename}', file_obj)
-        
-        # Close connection
         ftp.quit()
+        return True
         
-        return True, "File berhasil diupload ke hosting"
-    
     except Exception as e:
-        return False, f"Error FTP: {str(e)}"
+        st.error(f"Error FTP: {str(e)}")
+        return False
 
 def main():
     st.set_page_config(
@@ -74,15 +82,7 @@ def main():
     
     st.title("⚽ Persebaya Klasemen Auto Upload")
     st.info("Aplikasi sedang berjalan...")
-    
-    # Konfigurasi FTP (hardcoded sesuai permintaan)
-    FTP_CONFIG = {
-        'host': "157.66.54.106",
-        'user': "appbonek",
-        'pass': "jikasupport081174",
-        'path': "/"
-    }
-    
+       
     # URL target (hardcoded sesuai permintaan)
     TARGET_URL = "https://www.ligaindonesiabaru.com/table/index/BRI_SUPER_LEAGUE_2025-26"
     FILENAME = "klasemen_liga1.csv"
@@ -110,21 +110,28 @@ def main():
        
         cleaned_content = clean_html_content(response.text)
         
-        # Tambahkan timestamp
-        timestamp = datetime.datetime.now().strftime("<!-- Generated at: %Y-%m-%d %H:%M:%S -->\n")
-        final_content = timestamp + cleaned_content
-        
+        # Simpan ke file CSV sementara
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.csv', delete=False, encoding='utf-8-sig') as tmp_file:
+            csv_path = tmp_file.name
+            df.to_csv(csv_path, index=False, encoding="utf-8-sig")
         # Step 3: Upload ke hosting via FTP
         status_text.text("📤 Mengupload ke hosting...")
         progress_bar.progress(75)
         
-        success, message = upload_via_ftp(final_content, FILENAME, FTP_CONFIG)
+        try:
+            with st.spinner("Mengupload ke server FTP..."):
+                upload_via_ftp(csv_path, "klasemen_liga1.csv")
+                    
+        except Exception as e:
+                st.error(f"Gagal mengupload ke FTP: {str(e)}")
+                
+        # Hapus file temporary
+        os.unlink(csv_path)
         
-        if success:
-            status_text.text("✅ Proses selesai!")
-            progress_bar.progress(100)
+        status_text.text("✅ Proses selesai!")
+        progress_bar.progress(100)
             
-            st.success(f"""
+        st.success(f"""
             ✅ **File berhasil diupload!**
             
             **Detail:**
@@ -136,57 +143,18 @@ def main():
             """)
             
             # Tampilkan preview
-            with st.expander("📋 Preview Konten (1000 karakter pertama)"):
-                st.text_area(
-                    "Konten yang diupload:",
-                    final_content[:1000] + "..." if len(final_content) > 1000 else final_content,
-                    height=300,
-                    key="preview"
-                )
             
             # Statistik
-            st.subheader("📊 Statistik")
-            col1, col2, col3 = st.columns(3)
-            with col1:
-                st.metric("Konten Asli", f"{len(response.text):,} char")
-            with col2:
-                st.metric("Setelah Dibersihkan", f"{len(final_content):,} char")
-            with col3:
-                reduction = len(response.text) - len(final_content)
-                reduction_percent = (reduction / len(response.text)) * 100
-                st.metric("Pengurangan", f"{reduction:,} char", f"{reduction_percent:.1f}%")
                 
         else:
             st.error(f"❌ {message}")
             progress_bar.progress(0)
             
     except requests.exceptions.RequestException as e:
-        st.error(f"❌ Gagal mengambil data dari Persebaya: {str(e)}")
+        st.error(f"❌ Gagal mengambil data : {str(e)}")
         progress_bar.progress(0)
-    except Exception as e:
-        st.error(f"❌ Terjadi kesalahan: {str(e)}")
-        progress_bar.progress(0)
+      
     
-    # Informasi konfigurasi
-    with st.expander("🔧 Konfigurasi Saat Ini"):
-        st.code(f"""
-        URL Target: {TARGET_URL}
-        FTP Host: {FTP_CONFIG['host']}
-        FTP User: {FTP_CONFIG['user']}
-        FTP Path: {FTP_CONFIG['path']}
-        Output File: {FILENAME}
-        """)
-    
-    # Informasi tambahan
-    st.markdown("---")
-    st.markdown("""
-    ### 📝 Informasi:
-    - Data diambil dari: [Persebaya Jadwal](https://www.persebaya.id/jadwal-pertandingan/91/persebaya-surabaya)
-    - File disimpan di: `htdocs/jadwal.txt` pada hosting
-    - File dapat diakses via: `https://if0_40314646.ifastnet.com/jadwal.txt`
-    - Proses membersihkan 5 elemen HTML tertentu
-    - **Script berjalan otomatis setiap kali halaman ini diakses**
-    """)
-
+   
 if __name__ == "__main__":
     main()
