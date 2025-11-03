@@ -146,9 +146,6 @@ def main():
             
             # Statistik
                 
-        else:
-            st.error(f"❌ {message}")
-            progress_bar.progress(0)
             
     except requests.exceptions.RequestException as e:
         st.error(f"❌ Gagal mengambil data : {str(e)}")
