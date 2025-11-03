@@ -113,7 +113,7 @@ def main():
         # Simpan ke file CSV sementara
         with tempfile.NamedTemporaryFile(mode='w', suffix='.csv', delete=False, encoding='utf-8-sig') as tmp_file:
             csv_path = tmp_file.name
-            df.to_csv(csv_path, index=False, encoding="utf-8-sig")
+            cleaned_content.to_csv(csv_path, index=False, encoding="utf-8-sig")
         # Step 3: Upload ke hosting via FTP
         status_text.text("📤 Mengupload ke hosting...")
         progress_bar.progress(75)
