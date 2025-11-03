@@ -121,7 +121,7 @@ def main():
         
         try:
             with st.spinner("Mengupload ke server FTP..."):
-                upload_via_ftp(csv_path, "klasemen_liga1.csv")
+                upload_via_ftp(csv_path, "klasemen_liga1.txt")
                     
         except Exception as e:
                 st.error(f"Gagal mengupload ke FTP: {str(e)}")
