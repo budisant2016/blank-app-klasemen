@@ -2,6 +2,7 @@ import streamlit as st
 import requests
 from bs4 import BeautifulSoup
 import ftplib
+import pandas as pd
 from io import BytesIO
 import datetime
 
