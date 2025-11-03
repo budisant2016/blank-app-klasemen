@@ -1,3 +1,5 @@
+ftplib
+os
 streamlit
 requests
 beautifulsoup4
