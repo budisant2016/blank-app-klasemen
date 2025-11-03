@@ -131,20 +131,7 @@ def main():
         status_text.text("✅ Proses selesai!")
         progress_bar.progress(100)
             
-        st.success(f"""
-            ✅ **File berhasil diupload!**
-            
-            **Detail:**
-            - File: `{FILENAME}`
-            - Host: `{FTP_CONFIG['host']}`
-            - Path: `{FTP_CONFIG['path']}`
-            - URL: `https://if0_40314646.ifastnet.com/{FILENAME}`
-            - Waktu: {datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
-            """)
-            
-            # Tampilkan preview
-            
-            # Statistik
+        
                 
             
     except requests.exceptions.RequestException as e:
