@@ -131,9 +131,6 @@ def main():
         status_text.text("✅ Proses selesai!")
         progress_bar.progress(100)
             
-        
-                
-            
     except requests.exceptions.RequestException as e:
         st.error(f"❌ Gagal mengambil data : {str(e)}")
         progress_bar.progress(0)
