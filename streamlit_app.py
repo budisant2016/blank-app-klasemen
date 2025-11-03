@@ -109,7 +109,8 @@ def main():
         
        
         cleaned_content = clean_html_content(response.text)
-        
+        st.subheader("Preview Data Klasemen")
+        st.dataframe(cleaned_content)
         # Simpan ke file CSV sementara
         with tempfile.NamedTemporaryFile(mode='w', suffix='.csv', delete=False, encoding='utf-8-sig') as tmp_file:
             csv_path = tmp_file.name
