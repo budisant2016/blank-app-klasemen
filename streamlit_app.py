@@ -5,193 +5,137 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.by import By
 from selenium.common.exceptions import WebDriverException
-from selenium.webdriver.chrome.options import Options
 from bs4 import BeautifulSoup
-import urllib.parse
 import re
 import os
-import requests
-from huggingface_hub import HfApi
-from huggingface_hub import login, snapshot_download
+from ftplib import FTP
+import tempfile
 
 def main():
-    st.set_page_config(page_title="Persebaya Match Data", layout="wide")
+    st.title("Scraping Data Klasemen Liga 1")
     
-    st.title("Persebaya Match Data Scraper")
-    st.write("Mengambil data jadwal pertandingan Persebaya Surabaya")
-    
-    # Tambahkan progress indicator
-    with st.spinner("Sedang mengambil data dari website Persebaya..."):
-        xdata = take_datamatch()
-    
-    if xdata:
-        st.success("Berhasil mengambil data!")
-        
-        # Tampilkan preview data
-        with st.expander("Preview Data HTML"):
-            st.code(xdata[:2000] + "..." if len(xdata) > 2000 else xdata, language='html')
-        
-        # Simpan di lokal
-        file_path = save_to_temp_file(xdata)
-        
-        if file_path:
-            st.write(f"Data disimpan sementara di: `{file_path}`")
+    if st.button("Ambil Data Klasemen Terbaru"):
+        with st.spinner("Mengambil data dari website..."):
+            xdata = take_dataklasemen()
             
-            # Upload ke Hugging Face
-            with st.spinner("Mengupload data ke Hugging Face Hub..."):
-                try:
-                    # Login dengan token dari secrets
-                    token = st.secrets.get("AKSES_MATCH")
-                    if token:
-                        login(token=token)
-                        st.success("Berhasil login ke Hugging Face")
-                    else:
-                        st.error("Token Hugging Face tidak ditemukan. Pastikan sudah diatur di Streamlit Secrets.")
-                        return
-
-                    api = HfApi()
-                    api.create_repo(
-                        repo_id="sintamar/dataliga1",
-                        repo_type="dataset",
-                        exist_ok=True
-                    )
-                    
-                    if os.path.exists(file_path):
-                        api.upload_file(
-                            path_or_fileobj=file_path,
-                            path_in_repo="data/match_psby.txt",
-                            repo_id="sintamar/dataliga1",
-                            repo_type="dataset",
-                            commit_message="update otomatis match psby"
-                        )
-                        st.success("Berhasil upload data ke Hugging Face Hub!")
-                    else:
-                        st.error(f"File tidak ditemukan: {file_path}")
-                        
-                except Exception as e:
-                    st.error(f"Error saat upload ke Hugging Face: {e}")
+        if xdata:
+            with st.spinner("Memproses data..."):
+                df = pd.read_html(str(xdata))[0]
                 
-    else:
-        st.error("Gagal mengambil data dari website.")
-    
-    # Tambahkan informasi tambahan
-    st.markdown("---")
-    st.markdown("""
-    **Fitur:**
-    - Scraping data jadwal pertandingan Persebaya Surabaya
-    - Penyimpanan otomatis ke Hugging Face Dataset
-    - Update data secara berkala
-    
-    **Sumber Data:** [persebaya.id](https://www.persebaya.id/jadwal-pertandingan/91/persebaya-surabaya)
-    """)
+                # Bersihkan header ganda jika ada
+                if df.columns[0] == df.iloc[0, 0]:
+                    df = df.drop(0)
+                
+                # Normalisasi nama kolom
+                df.columns = [
+                    "Posisi", "Klub", "Main", "Menang", "Seri", "Kalah",
+                    "GF", "GA", "GD", "Poin", "Form", "Next"
+                ][:len(df.columns)]
+                
+                # Konversi nilai numerik untuk kolom statistik
+                for col in ["Posisi", "Main", "Menang", "Seri", "Kalah", "GF", "GA", "GD", "Poin"]:
+                    if col in df.columns:
+                        df[col] = pd.to_numeric(df[col], errors="coerce")
+                
+                # Tampilkan preview data
+                st.subheader("Preview Data Klasemen")
+                st.dataframe(df)
+                
+                # Simpan ke file CSV sementara
+                with tempfile.NamedTemporaryFile(mode='w', suffix='.csv', delete=False, encoding='utf-8-sig') as tmp_file:
+                    csv_path = tmp_file.name
+                    df.to_csv(csv_path, index=False, encoding="utf-8-sig")
+                
+                # Upload ke FTP
+                try:
+                    with st.spinner("Mengupload ke server FTP..."):
+                        upload_via_ftp(csv_path, "klasemen_liga1.csv")
+                    st.success("Data berhasil diambil dan diupload ke server FTP!")
+                    
+                    # Tampilkan link download
+                    st.info("Data telah disimpan sebagai 'klasemen_liga1.csv' di server FTP")
+                    
+                except Exception as e:
+                    st.error(f"Gagal mengupload ke FTP: {str(e)}")
+                
+                # Hapus file temporary
+                os.unlink(csv_path)
+                
+        else:
+            st.error("Tidak dapat mengambil data dari website. Silakan coba lagi.")
 
-def save_to_temp_file(cleaned_content):
-    """
-    Fungsi untuk menyimpan konten yang sudah dibersihkan ke file temporary
-    """
-    filename = "match_psby.txt"
+def take_dataklasemen():
+    options = webdriver.ChromeOptions()
+    options.add_argument('--headless')
+    options.add_argument('--no-sandbox')
+    options.add_argument('--disable-dev-shm-usage')
+    options.add_argument('--disable-gpu')
+    options.add_argument('--remote-debugging-port=9222')
+    
+    # Untuk Streamlit Cloud
+    options.binary_location = "/usr/bin/google-chrome"
     
     try:
-        # Membuat direktori /tmp jika belum ada
-        temp_dir = "/tmp"
-        os.makedirs(temp_dir, exist_ok=True)
-        
-        # Path file
-        file_path = os.path.join(temp_dir, filename)
-        
-        # Menyimpan konten ke file
-        with open(file_path, 'w', encoding='utf-8') as f:
-            f.write(cleaned_content)
-        
-        return file_path
-    except Exception as e:
-        st.error(f"Error saving file: {e}")
-        return None
-
-def take_datamatch():
-    """
-    Fungsi untuk mengambil data jadwal pertandingan dari website Persebaya
-    """
-    # Konfigurasi Chrome untuk Streamlit Cloud
-    chrome_options = Options()
-    chrome_options.add_argument('--headless')
-    chrome_options.add_argument('--no-sandbox')
-    chrome_options.add_argument('--disable-dev-shm-usage')
-    chrome_options.add_argument('--disable-gpu')
-    chrome_options.add_argument('--remote-debugging-port=9222')
-    chrome_options.add_argument('--disable-extensions')
-    chrome_options.add_argument('--disable-features=VizDisplayCompositor')
-    chrome_options.add_argument('--window-size=1920,1080')
-    
-    # Untuk menghindari issues di cloud environment
-    chrome_options.add_argument('--disable-blink-features=AutomationControlled')
-    chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
-    chrome_options.add_experimental_option('useAutomationExtension', False)
-    
-    wd = None
-    try:
-        # Inisialisasi WebDriver
-        wd = webdriver.Chrome(options=chrome_options)
-        wd.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
-        
-        # Set timeout
-        wd.set_page_load_timeout(30)
+        wd = webdriver.Chrome(options=options)
+        wd.set_window_size(1080, 720)
+        wd.get('https://www.ligaindonesiabaru.com/table/index/BRI_SUPER_LEAGUE_2025-26')
         wd.implicitly_wait(10)
         
-        # Buka URL target
-        url = 'https://www.persebaya.id/jadwal-pertandingan/91/persebaya-surabaya'
-        wd.get(url)
-        
-        # Tunggu sampai page load
-        WebDriverWait(wd, 20).until(
-            EC.presence_of_element_located((By.TAG_NAME, "body"))
+        # Tunggu sampai tabel muncul
+        WebDriverWait(wd, 10).until(
+            EC.presence_of_element_located((By.CLASS_NAME, "table-striped"))
         )
         
-        # Ambil HTML
         html = wd.execute_script("return document.documentElement.outerHTML;")
         soup = BeautifulSoup(html, "html.parser")
-        
-        # Daftar elemen yang akan dihapus
-        elements_to_remove = [
-            {'name': 'div', 'class': 'container persebaya-nav'},
-            {'name': 'h4', 'class': 'modal-title', 'text': 'Search'},
-            {'name': 'button', 'class': 'close', 'attrs': {'data-dismiss': 'modal'}},
-            {'name': 'div', 'class': 'row mt-4 mb-2'},
-            {'name': 'div', 'class': 'col-md-12 px-0 px-md-3'},
-            {'name': 'div', 'class': 'col-12 col-md-3 order-last order-md-last text-center'},
-            {'name': 'form', 'attrs': {'action': 'https://www.persebaya.id/search/result', 'class': 'form-inline navbar-right ml-auto', 'method': 'GET', 'role': 'search'}},
-            {'name': 'div', 'id': 'footer-top', 'class': 'row align-items-center text-center pb-5 pb-md-3 pt-md-4'}
-        ]
-        
-        # Hapus setiap elemen yang ditentukan
-        for element_config in elements_to_remove:
-            if 'class' in element_config and 'text' in element_config:
-                elements = soup.find_all(element_config['name'], 
-                                       class_=element_config['class'],
-                                       string=element_config['text'])
-            elif 'class' in element_config:
-                elements = soup.find_all(element_config['name'], class_=element_config['class'])
-            elif 'attrs' in element_config:
-                elements = soup.find_all(element_config['name'], attrs=element_config['attrs'])
-            else:
-                elements = soup.find_all(element_config['name'])
-            
-            for element in elements:
-                element.decompose()
 
-        # Mendapatkan HTML yang sudah dibersihkan
-        cleaned_html = str(soup)
-        return cleaned_html
-                  
+        tableklasemen = soup.find("table", class_="table-striped table-responsive table-hover result-point")
+        
+        return tableklasemen
+          
     except WebDriverException as e:
-        st.error(f"WebDriver Error: {e}")
+        st.error(f"Error WebDriver: {str(e)}")
         return None
     except Exception as e:
-        st.error(f"Unexpected Error: {e}")
+        st.error(f"Error: {str(e)}")
         return None
     finally:
-        if wd:
+        if 'wd' in locals():
             wd.quit()
+
+def upload_via_ftp(local_file_path, remote_file_name):
+    """
+    Upload file ke server FTP
+    """
+    # Ganti dengan kredensial FTP Anda
+    FTP_HOST = st.secrets.get("FTP_HOST", os.environ.get('FTP_HOST'))
+    FTP_USER = st.secrets.get("FTP_USER", os.environ.get('FTP_USER'))
+    FTP_PASS = st.secrets.get("FTP_PASS", os.environ.get('FTP_PASS'))
+    FTP_PATH = st.secrets.get("FTP_PATH", os.environ.get('FTP_PATH', ''))
+    
+    if not all([FTP_HOST, FTP_USER, FTP_PASS]):
+        st.error("Kredensial FTP tidak ditemukan. Silakan setting environment variables atau Streamlit secrets.")
+        return False
+    
+    try:
+        # Connect to FTP server
+        ftp = FTP(FTP_HOST)
+        ftp.login(FTP_USER, FTP_PASS)
+        
+        # Change to target directory if specified
+        if FTP_PATH:
+            ftp.cwd(FTP_PATH)
+        
+        # Upload file
+        with open(local_file_path, 'rb') as file:
+            ftp.storbinary(f'STOR {remote_file_name}', file)
+        
+        ftp.quit()
+        return True
+        
+    except Exception as e:
+        st.error(f"Error FTP: {str(e)}")
+        return False
 
 if __name__ == "__main__":
     main()
