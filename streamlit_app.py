@@ -1,7 +1,7 @@
 import streamlit as st
 import requests
 from bs4 import BeautifulSoup
-import ftplib
+from ftplib import FTP
 import os
 import pandas as pd
 from io import BytesIO
