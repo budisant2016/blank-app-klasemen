@@ -4,6 +4,7 @@ on:
   schedule:
     - cron: "0 */11 * * *" # setiap 11 jam
   workflow_dispatch:
+
 permissions:
   contents: write
 
