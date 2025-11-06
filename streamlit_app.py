@@ -146,7 +146,7 @@ if __name__ == "__main__":
     
     # Opsional: tampilan log keepalive
     try:
-        with open("../keepalive.log") as f:
+        with open("keepalive.log") as f:
             log = f.readlines()[-5:]  # 5 log terakhir
         st.write("Log keepalive terakhir:")
         st.write("".join(log))
