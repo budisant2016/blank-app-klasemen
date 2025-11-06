@@ -136,7 +136,20 @@ def main():
         st.error(f"❌ Gagal mengambil data : {str(e)}")
         progress_bar.progress(0)
       
+    st.title("Streamlit Keep-Alive Demo 🚀")
+
+    st.write("Aplikasi ini menampilkan waktu saat ini dan bisa dipakai untuk uji anti-sleep.")
     
+    st.write("Waktu sekarang:", datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+    
+    # Opsional: tampilan log keepalive
+    try:
+        with open("../keepalive.log") as f:
+            log = f.readlines()[-5:]  # 5 log terakhir
+        st.write("Log keepalive terakhir:")
+        st.write("".join(log))
+    except:
+        st.write("Belum ada log keepalive.")
    
 if __name__ == "__main__":
     main()
