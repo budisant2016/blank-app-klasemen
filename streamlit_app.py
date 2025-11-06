@@ -134,8 +134,10 @@ def main():
             
     except requests.exceptions.RequestException as e:
         st.error(f"❌ Gagal mengambil data : {str(e)}")
-        progress_bar.progress(0)
-      
+        progress_bar.progress(0)      
+   
+if __name__ == "__main__":
+    main()
     st.title("Streamlit Keep-Alive Demo 🚀")
 
     st.write("Aplikasi ini menampilkan waktu saat ini dan bisa dipakai untuk uji anti-sleep.")
@@ -150,6 +152,3 @@ def main():
         st.write("".join(log))
     except:
         st.write("Belum ada log keepalive.")
-   
-if __name__ == "__main__":
-    main()
