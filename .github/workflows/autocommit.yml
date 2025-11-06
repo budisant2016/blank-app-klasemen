@@ -1,0 +1,29 @@
+name: Auto Commit Keep Alive
+
+on:
+  schedule:
+    - cron: "0 */11 * * *" # setiap 11 jam
+  workflow_dispatch:
+
+jobs:
+  auto-commit:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repo
+      uses: actions/checkout@v4
+
+    - name: Update keepalive file
+      run: |
+        date >> keepalive.log
+
+    - name: Commit changes
+      run: |
+        git config user.name "github-actions"
+        git config user.email "github-actions@github.com"
+        git add keepalive.log
+        git commit -m "keepalive: update timestamp" || echo "No changes to commit"
+
+    - name: Push changes
+      run: |
+        git push
