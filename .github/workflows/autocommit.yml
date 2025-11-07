@@ -1,9 +1,9 @@
-name: Auto Commit Keep Alive
+name: Auto Commit & Keep Streamlit Alive
 
 on:
   schedule:
-    - cron: "0 */11 * * *" # setiap 11 jam
-  workflow_dispatch:
+    - cron: "0 */11 * * *"   # setiap 11 jam (UTC)
+  workflow_dispatch:          # bisa dijalankan manual via Actions
 
 permissions:
   contents: write
@@ -13,24 +13,37 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  auto-commit:
+  keepalive:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout repo
-      uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-    - name: Update keepalive file
-      run: |
-        date >> keepalive.log
+      - name: Update keepalive.log (WIB time)
+        id: updatelog
+        run: |
+          TIMESTAMP=$(date -d '+7 hours' '+%Y-%m-%d %H:%M:%S')
+          echo "=== Keepalive triggered at ${TIMESTAMP} WIB ===" >> keepalive.log
+          echo "timestamp=${TIMESTAMP}" >> $GITHUB_OUTPUT
 
-    - name: Commit changes
-      run: |
-        git config user.name "github-actions"
-        git config user.email "github-actions@github.com"
-        git add keepalive.log
-        git commit -m "keepalive: update timestamp" || echo "No changes to commit"
+      - name: Ping Streamlit app to keep it awake
+        id: ping
+        run: |
+          URL="https://blank-app-klasemen.streamlit.app"
+          echo "Pinging $URL ..."
+          # Simpan status HTTP response
+          STATUS=$(curl -L -s -o /dev/null -w "%{http_code}" --max-time 30 "$URL" || echo "000")
+          echo "Ping status: $STATUS"
+          echo "Ping status: $STATUS" >> keepalive.log
+          echo "status=$STATUS" >> $GITHUB_OUTPUT
 
-    - name: Push changes
-      run: |
-        git push
+      - name: Commit updated log
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          git add keepalive.log
+          git commit -m "keepalive: ${{ steps.updatelog.outputs.timestamp }} (status ${{ steps.ping.outputs.status }})" || echo "No changes to commit"
+
+      - name: Push changes
+        run: git push
