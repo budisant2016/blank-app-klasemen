@@ -30,7 +30,7 @@ jobs:
       - name: Ping Streamlit app to keep it awake
         id: ping
         run: |
-          URL="https://blank-app-klasemen.streamlit.app"
+          URL="https://blank-app-e3lettb2rel-klasemen.streamlit.app/"
           echo "Pinging $URL ..."
           # Simpan status HTTP response
           STATUS=$(curl -L -s -o /dev/null -w "%{http_code}" --max-time 30 "$URL" || echo "000")
