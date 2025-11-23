@@ -128,7 +128,7 @@ def main():
                 
         # Hapus file temporary
         os.unlink(csv_path)
-        
+        status_text.text("✅ Proses selesai!", csv_path)
         status_text.text("✅ Proses selesai!")
         progress_bar.progress(100)
             
